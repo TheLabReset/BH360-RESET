@@ -90,7 +90,6 @@ import { loadPeriods, savePeriods, clearPeriods, hasStoredPeriods } from "@/lib/
 import { exportToExcel } from "@/lib/export"
 
 import resetLogo from "@/assets/reset-blanco.png"
-import wantedLogo from "@/assets/wanted-blanco.png"
 
 // ─── Utility Components ───────────────────────────────────────
 
@@ -2054,15 +2053,10 @@ export default function App() {
                 alt="Reset"
                 className="h-8 object-contain opacity-70 hover:opacity-100 transition-opacity"
               />
-              <img
-                src={wantedLogo}
-                alt="Wanted"
-                className="h-8 object-contain opacity-70 hover:opacity-100 transition-opacity"
-              />
             </div>
             <Separator orientation="vertical" className="h-6 bg-zinc-800" />
             <span className="text-xs text-zinc-600">
-              BH360 by The Lab / Reset
+              BH360 Powered by <strong className="font-semibold text-zinc-400">THE LAB</strong>
             </span>
           </div>
         </footer>
