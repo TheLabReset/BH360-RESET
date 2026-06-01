@@ -2,7 +2,7 @@
 
 ## Qué es este proyecto
 
-BH360 (Brand Health 360) es un indice compuesto de salud de marca (0-100) desarrollado por The Lab / Reset. Aplicacion React que calcula, visualiza y simula el indice. Lee `README.md` para la documentacion completa.
+BH360 (Business Health 360) es un indice compuesto de salud de negocio (0-100) desarrollado por The Lab / Reset. Aplicacion React que calcula, visualiza y simula el indice. Lee `README.md` para la documentacion completa.
 
 ## Archivos que importan (lee en este orden)
 

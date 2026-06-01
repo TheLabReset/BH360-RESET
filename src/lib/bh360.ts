@@ -107,7 +107,7 @@ export const DIMENSIONS: DimensionConfig[] = [
     unit: "NSS",
     source: "Agencia creativa / Social listening",
     description:
-      "Net Sentiment Score: porcentaje de menciones positivas menos negativas. Rango natural de -100 a +100.",
+      "Net Sentiment Score: diferencia entre el porcentaje de menciones positivas y negativas. Rango natural de -100 (muy negativo) a +100 (muy positivo).",
     justification:
       "Field (IPA, 2026): 93% de campañas con grandes mejoras en trust reportan efectos de negocio. Peso moderado (15%) porque es volátil y sensible a crisis.",
   },
@@ -285,7 +285,10 @@ export const SAMPLE_DATA: PeriodData[] = [
 // ─── Funciones de normalización ───────────────────────────────
 
 export function normalize(value: number, floor: number, ceiling: number): number {
-  return Math.min(100, Math.max(0, ((value - floor) / (ceiling - floor)) * 100))
+  const range = ceiling - floor
+  // Evita división por cero si piso === techo (config inválida o futura).
+  if (range <= 0) return value >= ceiling ? 100 : 0
+  return Math.min(100, Math.max(0, ((value - floor) / range) * 100))
 }
 
 export function normalizeNSS(nss: number): number {
@@ -310,7 +313,8 @@ export function normalizeDimension(dimId: string, value: number): number {
 
 export function calculateBH360(data: PeriodData): BH360Result {
   const normalized: NormalizedScores = {
-    investment: normalizeDimension("investment", data.investment),
+    // La inversión se deriva del mediaMix cuando existe (fuente única de verdad).
+    investment: normalizeDimension("investment", getDimensionValue(data, "investment")),
     reach: normalizeDimension("reach", data.reach),
     purchase: normalizeDimension("purchase", data.purchase),
     sentiment: normalizeDimension("sentiment", data.sentiment),
@@ -409,9 +413,20 @@ export function formatDimensionValue(dimId: string, value: number): string {
   }
 }
 
-export function getDimensionValue(
-  data: PeriodData,
-  dimId: string
-): number {
-  return data[dimId as keyof Omit<PeriodData, "period" | "brand" | "campaign">] as number
+export function getDimensionValue(data: PeriodData, dimId: string): number {
+  // La inversión siempre se deriva del desglose por medio (fuente única).
+  if (dimId === "investment") {
+    return sumMediaMix(getMediaMix(data))
+  }
+  const value = data[dimId as keyof PeriodData]
+  return typeof value === "number" ? value : 0
+}
+
+// Accesores tipados para leer del resultado sin `as` frágiles dispersos.
+export function getNormalized(result: BH360Result, dimId: string): number {
+  return result.normalized[dimId as keyof NormalizedScores] ?? 0
+}
+
+export function getContribution(result: BH360Result, dimId: string): number {
+  return result.contributions[dimId] ?? 0
 }

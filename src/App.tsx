@@ -77,9 +77,9 @@ import {
   sumMediaMix,
   emptyMediaMix,
   normalizeDimension,
+  getNormalized,
   type PeriodData,
   type MediaMix,
-  type NormalizedScores,
 } from "@/lib/bh360"
 
 import resetLogo from "@/assets/reset-blanco.png"
@@ -339,22 +339,22 @@ function ReportView({
 
   const radarData = DIMENSIONS.map((dim) => ({
     dimension: dim.label.split(" ")[0],
-    current: result.normalized[dim.id as keyof NormalizedScores],
+    current: getNormalized(result, dim.id),
     previous: prevResult
-      ? prevResult.normalized[dim.id as keyof NormalizedScores]
+      ? getNormalized(prevResult, dim.id)
       : undefined,
   }))
 
   const barData = DIMENSIONS.map((dim) => ({
     name: dim.label.split(" ")[0],
-    value: Math.round(result.normalized[dim.id as keyof NormalizedScores]),
+    value: Math.round(getNormalized(result, dim.id)),
     fill: PILLAR_COLORS[dim.pillar],
   }))
 
   // Diagnóstico automático
   const sorted = DIMENSIONS.map((dim) => ({
     ...dim,
-    score: result.normalized[dim.id as keyof NormalizedScores],
+    score: getNormalized(result, dim.id),
   })).sort((a, b) => b.score - a.score)
   const strongest = sorted[0]
   const weakest = sorted[sorted.length - 1]
@@ -459,10 +459,10 @@ function ReportView({
 
         <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {DIMENSIONS.map((dim) => {
-            const normScore = result.normalized[dim.id as keyof NormalizedScores]
+            const normScore = getNormalized(result, dim.id)
             const rawValue = getDimensionValue(current, dim.id)
             const prevNorm = prevResult
-              ? prevResult.normalized[dim.id as keyof NormalizedScores]
+              ? getNormalized(prevResult, dim.id)
               : undefined
 
             return (
@@ -906,7 +906,7 @@ function DataEntryView({
             </Badge>
             <div className="w-full space-y-2 mt-2">
               {DIMENSIONS.map((dim) => {
-                const normVal = preview.normalized[dim.id as keyof NormalizedScores]
+                const normVal = getNormalized(preview, dim.id)
                 return (
                   <div key={dim.id} className="flex items-center gap-2 text-xs">
                     <DimIcon id={dim.id} className="h-3 w-3 text-zinc-500" />
@@ -1049,8 +1049,8 @@ function SimView({
 
   const simRadarData = DIMENSIONS.map((dim) => ({
     dimension: dim.label.split(" ")[0],
-    actual: actualResult.normalized[dim.id as keyof NormalizedScores],
-    simulado: simResult.normalized[dim.id as keyof NormalizedScores],
+    actual: getNormalized(actualResult, dim.id),
+    simulado: getNormalized(simResult, dim.id),
   }))
 
   const contribData = DIMENSIONS.map((dim) => ({
@@ -1099,7 +1099,7 @@ function SimView({
             <CardContent className="space-y-5">
               {DIMENSIONS.map((dim) => {
                 const realValue = simRealValue(dim.id)
-                const norm = simResult.normalized[dim.id as keyof NormalizedScores]
+                const norm = getNormalized(simResult, dim.id)
                 const contrib = simResult.contributions[dim.id]
                 const isInvestment = dim.id === "investment"
                 return (
