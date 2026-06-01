@@ -45,10 +45,20 @@ npx tsc --noEmit      # Type check sin compilar
 ```
 src/
   lib/bh360.ts       ← Motor de calculo (interfaces, formula, datos ejemplo)
+  lib/storage.ts      ← Persistencia en localStorage (carga/guarda periodos)
+  lib/export.ts       ← Export a Excel (.xlsx) via SheetJS (import dinamico)
   App.tsx             ← UI completa (4 vistas en un archivo)
   index.css           ← Tema dark (CSS variables)
   components/ui/      ← shadcn/ui (no tocar)
 ```
+
+## Datos y persistencia
+
+- Los periodos se guardan en localStorage (clave `bh360_periods_v1`). Al cargar
+  sin datos guardados se usan los `SAMPLE_DATA` de ejemplo.
+- La inversion se desagrega por medio (`mediaMix`) y su suma alimenta la
+  dimension Inversion. `mediaMix` es la fuente unica de verdad.
+- El Ingreso permite crear, editar y borrar periodos, y exportar a Excel.
 
 ## Para agregar una dimension
 

@@ -837,6 +837,12 @@ function DataEntryView({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 space-y-6">
+        {data.length < 2 && (
+          <div className="flex items-center gap-2 text-xs text-zinc-400 bg-zinc-900/60 border border-zinc-800 rounded-md px-3 py-2">
+            <Lightbulb className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            Cargá al menos 2 períodos para ver tendencias y comparaciones en el Reporte.
+          </div>
+        )}
         {/* Stepper */}
         <nav role="navigation" aria-label="Pasos de ingreso" className="flex items-center gap-1 overflow-x-auto pb-2">
           {ENTRY_STEPS.map((s, i) => (
@@ -1400,7 +1406,7 @@ function SimView({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Controles */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className="lg:col-span-1 space-y-4 order-2 lg:order-1">
           <Card className="bg-zinc-900/60 border-zinc-800">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -1535,7 +1541,7 @@ function SimView({
         </div>
 
         {/* Resultados */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 order-1 lg:order-2">
           <Card className="bg-zinc-900/60 border-zinc-800">
             <CardContent className="p-6 flex flex-col items-center gap-4">
               <div className="flex items-center gap-8">

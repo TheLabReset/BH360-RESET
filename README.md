@@ -364,13 +364,13 @@ pnpm build      # Output en dist/
 
 ### Conectar a una base de datos real
 
-Actualmente los datos viven en memoria (state de React). Para persistir:
+Los datos se persisten en **localStorage** (clave `bh360_periods_v1`) via `src/lib/storage.ts`: se cargan al iniciar y se guardan ante cada cambio, con migracion de `mediaMix` y fallback a `SAMPLE_DATA` si no hay datos o estan corruptos. El Ingreso permite crear, editar y borrar periodos, restaurar los datos de ejemplo y **exportar a Excel** (`src/lib/export.ts`, SheetJS con import dinamico). El Reporte permite **comparar** contra cualquier periodo base.
 
-1. **Opcion ligera (Supabase):** Reemplazar `useState<PeriodData[]>(SAMPLE_DATA)` con un hook que lea/escriba a Supabase via `@supabase/supabase-js`. Las tablas necesarias: `periods` (id, period, brand, campaign, investment, reach, purchase, sentiment, sales, created_at).
+Para escalar la persistencia a multiusuario:
 
-2. **Opcion local (localStorage):** Envolver el state con un efecto que serialize/deserialize a `localStorage`. Util para demos sin backend.
+1. **Opcion ligera (Supabase):** Reemplazar la carga desde `storage.ts` con un hook que lea/escriba a Supabase via `@supabase/supabase-js`. Tablas: `periods` (id, period, brand, campaign, investment, reach, purchase, sentiment, sales, media_mix, created_at).
 
-3. **Opcion enterprise (API REST):** Crear endpoints GET/POST/PUT en cualquier backend. El componente `App` consumiria via fetch en un useEffect.
+2. **Opcion enterprise (API REST):** Crear endpoints GET/POST/PUT/DELETE en cualquier backend. El componente `App` consumiria via fetch en un useEffect.
 
 ---
 
