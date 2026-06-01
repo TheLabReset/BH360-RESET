@@ -381,7 +381,7 @@ Actualmente los datos viven en memoria (state de React). Para persistir:
 - TypeScript estricto (`strict: true` en tsconfig)
 - Nombres de variables y funciones en camelCase ingles (`calculateBH360`, `normalizeNSS`)
 - Nombres de dimensiones en ingles como IDs (`investment`, `reach`, `purchase`, `sentiment`, `sales`)
-- Labels y textos de UI en espanol sin tildes (para evitar problemas de encoding en bundle)
+- Labels y textos de UI en espanol con buena ortografia (con tildes y signos correctos)
 - Componentes React como funciones (no clases)
 - State management: useState local (no Redux, no Zustand en v1)
 - Imports de shadcn/ui via `@/components/ui/`

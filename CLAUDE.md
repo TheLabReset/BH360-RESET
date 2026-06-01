@@ -31,7 +31,7 @@ npx tsc --noEmit      # Type check sin compilar
 
 - TypeScript estricto, React funcional con hooks
 - Variables y funciones en camelCase ingles
-- Labels y textos de UI en espanol SIN tildes
+- Labels y textos de UI en espanol con buena ortografia (con tildes y signos correctos)
 - NUNCA emojis. Solo Lucide icons
 - NUNCA Inter/Roboto/Arial. Tipografia: Outfit (Google Fonts)
 - Graficos siempre via Recharts (no SVG manual para charts)

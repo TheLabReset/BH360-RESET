@@ -34,7 +34,7 @@
 
 | ID | Dimension | Peso | Piso | Techo | Unidad | Fuente |
 |----|-----------|------|------|-------|--------|--------|
-| `investment` | Inversion de Campana | 0.15 | 0 | 8,000,000 | S/ | Agencia de medios |
+| `investment` | Inversion de Campana | 0.15 | 0 | 500,000 | S/ | Agencia de medios |
 | `reach` | Alcance Deduplicado | 0.20 | 0 | 95 | % | Agencia + plataformas |
 | `purchase` | Compra Declarada (Ultimo Mes) | 0.25 | 0 | 85 | % | Ipsos / Panel digital The Lab |
 | `sentiment` | Net Sentiment Score | 0.15 | -100 | +100 | NSS | Agencia creativa / Social listening |
@@ -96,9 +96,11 @@ performanceAvg = N_ven
 ## Calibracion de goalposts
 
 Los goalposts (pisos y techos) estan calibrados para el contexto de San Fernando S.A.:
-- ~S/ 6-8M de inversion anual en medios
+- ~S/ 0.2-0.5M de inversion por campana en medios (techo 500K)
 - Lider en proteina animal en Peru (FMCG)
 - ~S/ 10-12M de ventas trimestrales
+
+La inversion se ingresa desagregada por medio (TV Abierta, Digital, OOH, Radio, Periodico) y su suma alimenta la dimension `investment`. El desglose se persiste en el campo opcional `mediaMix` de `PeriodData` pero NO altera la formula: solo aporta el total. Estructura tipica del split por defecto (`DEFAULT_MEDIA_SHARES`): TV Abierta 45%, Digital 30%, OOH 12%, Radio 9%, Periodico 4%.
 
 Para otros clientes/categorias, ajustar `floor` y `ceiling` en el array `DIMENSIONS` de `bh360.ts`.
 
