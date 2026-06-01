@@ -28,7 +28,6 @@ import {
   ChevronRight,
   ChevronLeft,
   BarChart3,
-  FileText,
   SlidersHorizontal,
   ClipboardList,
   RotateCcw,
@@ -1168,7 +1167,8 @@ const NAV_TABS = [
   { id: "report", label: "Reporte", icon: BarChart3 },
   { id: "entry", label: "Ingreso", icon: ClipboardList },
   { id: "sim", label: "Simulador", icon: SlidersHorizontal },
-  { id: "meth", label: "Metodología", icon: FileText },
+  // Tab de Metodologia oculta del frontend (componente MethodView se conserva, no se elimina)
+  // { id: "meth", label: "Metodología", icon: FileText },
 ]
 
 export default function App() {
