@@ -340,7 +340,20 @@ function ReportView({
   selectedIndex: number
 }) {
   const current = data[selectedIndex]
-  const previous = selectedIndex > 0 ? data[selectedIndex - 1] : undefined
+  const [compareIndex, setCompareIndex] = useState<number | null>(
+    selectedIndex > 0 ? selectedIndex - 1 : null
+  )
+
+  // Reiniciar la comparación al cambiar el período principal.
+  useEffect(() => {
+    setCompareIndex(selectedIndex > 0 ? selectedIndex - 1 : null)
+  }, [selectedIndex])
+
+  const cmp =
+    compareIndex !== null && compareIndex < data.length && compareIndex !== selectedIndex
+      ? compareIndex
+      : null
+  const previous = cmp !== null ? data[cmp] : undefined
   const result = calculateBH360(current)
   const prevResult = previous ? calculateBH360(previous) : undefined
 
@@ -368,6 +381,42 @@ function ReportView({
 
   return (
     <div className="space-y-6">
+      {/* Toolbar: comparación + export */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-500">Comparar con:</span>
+          <Select
+            value={cmp === null ? "none" : String(cmp)}
+            onValueChange={(v) => setCompareIndex(v === "none" ? null : Number(v))}
+          >
+            <SelectTrigger className="w-[160px] h-8 bg-zinc-900 border-zinc-700 text-xs">
+              <SelectValue placeholder="Ninguno" />
+            </SelectTrigger>
+            <SelectContent className="bg-zinc-900 border-zinc-700">
+              <SelectItem value="none" className="text-xs">
+                Ninguno
+              </SelectItem>
+              {data
+                .map((d, i) => ({ d, i }))
+                .filter((x) => x.i !== selectedIndex)
+                .map((x) => (
+                  <SelectItem key={x.i} value={String(x.i)} className="text-xs">
+                    {x.d.period}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => exportToExcel(data)}
+          className="border-zinc-700 text-xs"
+        >
+          <Download className="h-3 w-3 mr-1.5" /> Exportar Excel
+        </Button>
+      </div>
+
       {/* Hero Card */}
       <Card className="bg-zinc-900/60 border-zinc-800">
         <CardContent className="p-6">
@@ -395,6 +444,9 @@ function ReportView({
                   {LEVEL_LABELS[result.level]}
                 </Badge>
                 <Delta current={result.score} previous={prevResult?.score} />
+                {previous && (
+                  <span className="text-[10px] text-zinc-600">vs {previous.period}</span>
+                )}
               </div>
               <div className="space-y-2 mt-4">
                 {Object.entries(PILLAR_LABELS).map(([key, label]) => (
