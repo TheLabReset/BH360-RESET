@@ -33,6 +33,11 @@ import {
   RotateCcw,
   Layers,
   Lightbulb,
+  Trash2,
+  Pencil,
+  Download,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -81,6 +86,8 @@ import {
   type PeriodData,
   type MediaMix,
 } from "@/lib/bh360"
+import { loadPeriods, savePeriods, clearPeriods, hasStoredPeriods } from "@/lib/storage"
+import { exportToExcel } from "@/lib/export"
 
 import resetLogo from "@/assets/reset-blanco.png"
 import wantedLogo from "@/assets/wanted-blanco.png"
@@ -605,25 +612,40 @@ const ENTRY_STEPS = [
   ...DIMENSIONS.map((d) => ({ id: d.id, label: d.label, dimId: d.id })),
 ]
 
+const DEFAULT_FORM: Partial<PeriodData> = {
+  brand: "San Fernando",
+  period: "",
+  campaign: "",
+  investment: 0,
+  reach: 0,
+  purchase: 0,
+  sentiment: 0,
+  sales: 0,
+}
+
 function DataEntryView({
   data,
   onAddPeriod,
+  onUpdatePeriod,
+  onDeletePeriod,
+  onRestoreSample,
+  onClearAll,
 }: {
   data: PeriodData[]
   onAddPeriod: (p: PeriodData) => void
+  onUpdatePeriod: (index: number, p: PeriodData) => void
+  onDeletePeriod: (index: number) => void
+  onRestoreSample: () => void
+  onClearAll: () => void
 }) {
   const [step, setStep] = useState(0)
-  const [form, setForm] = useState<Partial<PeriodData>>({
-    brand: "San Fernando",
-    period: "",
-    campaign: "",
-    investment: 0,
-    reach: 0,
-    purchase: 0,
-    sentiment: 0,
-    sales: 0,
+  const [form, setForm] = useState<Partial<PeriodData>>(() => ({
+    ...DEFAULT_FORM,
     mediaMix: emptyMediaMix(),
-  })
+  }))
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
+  const [clearConfirm, setClearConfirm] = useState(false)
 
   const update = (field: string, value: string | number) =>
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -637,6 +659,26 @@ function DataEntryView({
   // La inversión total se deriva de la suma del desglose por medio.
   const mediaMix = form.mediaMix ?? emptyMediaMix()
   const investmentTotal = sumMediaMix(mediaMix)
+  const investmentDim = DIMENSIONS.find((d) => d.id === "investment")!
+
+  // Validación de los datos del formulario.
+  const errors: string[] = []
+  if (!(form.period ?? "").trim()) errors.push("El período es obligatorio.")
+  if (!(form.campaign ?? "").trim()) errors.push("La campaña es obligatoria.")
+  if (investmentTotal <= 0) errors.push("La inversión total debe ser mayor a 0.")
+  if (investmentTotal > investmentDim.ceiling)
+    errors.push(
+      `La inversión no puede superar ${formatCurrency(investmentDim.ceiling)} por campaña.`
+    )
+  for (const d of DIMENSIONS) {
+    if (d.id === "investment") continue
+    const v = Number(form[d.id as keyof PeriodData] ?? 0)
+    if (v < d.floor || v > d.ceiling)
+      errors.push(
+        `${d.label} debe estar entre ${formatDimensionValue(d.id, d.floor)} y ${formatDimensionValue(d.id, d.ceiling)}.`
+      )
+  }
+  const isValid = errors.length === 0
 
   const canNext = step === 0
     ? (form.period?.length ?? 0) > 0 && (form.campaign?.length ?? 0) > 0
@@ -654,20 +696,36 @@ function DataEntryView({
     mediaMix,
   })
 
-  const handleSave = () => {
-    onAddPeriod({ ...(form as PeriodData), investment: investmentTotal, mediaMix })
+  const resetForm = () => {
     setStep(0)
-    setForm({
-      brand: "San Fernando",
-      period: "",
-      campaign: "",
-      investment: 0,
-      reach: 0,
-      purchase: 0,
-      sentiment: 0,
-      sales: 0,
-      mediaMix: emptyMediaMix(),
-    })
+    setEditingIndex(null)
+    setForm({ ...DEFAULT_FORM, mediaMix: emptyMediaMix() })
+  }
+
+  const handleSave = () => {
+    if (!isValid) return
+    const period: PeriodData = {
+      period: (form.period ?? "").trim(),
+      brand: (form.brand ?? "").trim() || "Marca",
+      campaign: (form.campaign ?? "").trim(),
+      investment: investmentTotal,
+      reach: Number(form.reach ?? 0),
+      purchase: Number(form.purchase ?? 0),
+      sentiment: Number(form.sentiment ?? 0),
+      sales: Number(form.sales ?? 0),
+      mediaMix,
+    }
+    if (editingIndex !== null) onUpdatePeriod(editingIndex, period)
+    else onAddPeriod(period)
+    resetForm()
+  }
+
+  const startEdit = (index: number) => {
+    const p = data[index]
+    setForm({ ...p, mediaMix: getMediaMix(p) })
+    setEditingIndex(index)
+    setStep(0)
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   return (
@@ -699,6 +757,11 @@ function DataEntryView({
         {/* Step Content */}
         <Card className="bg-zinc-900/60 border-zinc-800">
           <CardContent className="p-6 space-y-4">
+            {editingIndex !== null && (
+              <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+                <Pencil className="h-3 w-3" /> Editando: {data[editingIndex]?.period}
+              </div>
+            )}
             {step === 0 && (
               <>
                 <div className="space-y-2">
@@ -790,24 +853,46 @@ function DataEntryView({
                       <MediaShareBar mix={mediaMix} />
                       <p className="text-xs text-zinc-500">Fuente: {dim.source}</p>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Label htmlFor={fieldId}>Valor ({dim.unit})</Label>
-                      <Input
-                        id={fieldId}
-                        type="number"
-                        placeholder={`Rango: ${dim.floor} - ${dim.ceiling}`}
-                        value={(form[fieldId as keyof PeriodData] as number | undefined) ?? 0}
-                        onChange={(e) => update(fieldId, Number(e.target.value))}
-                        className="bg-zinc-800 border-zinc-700"
-                      />
-                      <p className="text-xs text-zinc-500">Fuente: {dim.source}</p>
-                    </div>
-                  )}
+                  ) : (() => {
+                    const dimVal = Number(form[fieldId as keyof PeriodData] ?? 0)
+                    const outOfRange = dimVal < dim.floor || dimVal > dim.ceiling
+                    return (
+                      <div className="space-y-2">
+                        <Label htmlFor={fieldId}>Valor ({dim.unit})</Label>
+                        <Input
+                          id={fieldId}
+                          type="number"
+                          min={dim.floor}
+                          max={dim.ceiling}
+                          placeholder={`Rango: ${dim.floor} - ${dim.ceiling}`}
+                          value={(form[fieldId as keyof PeriodData] as number | undefined) ?? 0}
+                          onChange={(e) => update(fieldId, Number(e.target.value))}
+                          className={`bg-zinc-800 ${outOfRange ? "border-red-500" : "border-zinc-700"}`}
+                        />
+                        {outOfRange && (
+                          <p className="text-xs text-red-400 flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3 shrink-0" /> Debe estar entre{" "}
+                            {formatDimensionValue(dim.id, dim.floor)} y{" "}
+                            {formatDimensionValue(dim.id, dim.ceiling)}.
+                          </p>
+                        )}
+                        <p className="text-xs text-zinc-500">Fuente: {dim.source}</p>
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })()}
 
+            {step === ENTRY_STEPS.length - 1 && !isValid && (
+              <div className="rounded-md border border-red-500/40 bg-red-500/10 p-3 space-y-1">
+                {errors.map((e, i) => (
+                  <p key={i} className="text-xs text-red-400 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3 shrink-0" /> {e}
+                  </p>
+                ))}
+              </div>
+            )}
             <div className="flex items-center justify-between pt-4">
               <Button
                 variant="outline"
@@ -818,24 +903,32 @@ function DataEntryView({
               >
                 <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
               </Button>
-              {step < ENTRY_STEPS.length - 1 ? (
-                <Button
-                  size="sm"
-                  onClick={() => setStep(step + 1)}
-                  disabled={!canNext}
-                  className="bg-amber-500 hover:bg-amber-600 text-zinc-900"
-                >
-                  Siguiente <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={handleSave}
-                  className="bg-amber-500 hover:bg-amber-600 text-zinc-900"
-                >
-                  Guardar Período
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {editingIndex !== null && (
+                  <Button variant="ghost" size="sm" onClick={resetForm} className="text-zinc-400">
+                    Cancelar
+                  </Button>
+                )}
+                {step < ENTRY_STEPS.length - 1 ? (
+                  <Button
+                    size="sm"
+                    onClick={() => setStep(step + 1)}
+                    disabled={!canNext}
+                    className="bg-amber-500 hover:bg-amber-600 text-zinc-900"
+                  >
+                    Siguiente <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={!isValid}
+                    className="bg-amber-500 hover:bg-amber-600 text-zinc-900 disabled:opacity-50"
+                  >
+                    {editingIndex !== null ? "Guardar cambios" : "Guardar Período"}
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -844,7 +937,35 @@ function DataEntryView({
         {data.length > 0 && (
           <Card className="bg-zinc-900/60 border-zinc-800">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-zinc-400">Histórico de Períodos</CardTitle>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <CardTitle className="text-sm text-zinc-400">Histórico de Períodos</CardTitle>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => exportToExcel(data)}
+                    className="text-zinc-400 hover:text-emerald-400 text-xs"
+                  >
+                    <Download className="h-3 w-3 mr-1" /> Excel
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onRestoreSample}
+                    className="text-zinc-400 hover:text-zinc-200 text-xs"
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" /> Datos de ejemplo
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setClearConfirm(true)}
+                    className="text-zinc-400 hover:text-red-400 text-xs"
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" /> Limpiar todo
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -859,13 +980,17 @@ function DataEntryView({
                         </th>
                       ))}
                       <th className="text-right py-2 px-2 text-zinc-500 font-medium">BH360</th>
+                      <th className="text-right py-2 px-2 text-zinc-500 font-medium">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.map((row, i) => {
                       const r = calculateBH360(row)
                       return (
-                        <tr key={i} className="border-b border-zinc-800/50">
+                        <tr
+                          key={i}
+                          className={`border-b border-zinc-800/50 ${editingIndex === i ? "bg-amber-500/5" : ""}`}
+                        >
                           <td className="py-2 px-2 text-zinc-300">{row.period}</td>
                           <td className="py-2 px-2 text-zinc-400 text-xs">{row.campaign}</td>
                           {DIMENSIONS.map((d) => (
@@ -875,6 +1000,24 @@ function DataEntryView({
                           ))}
                           <td className="text-right py-2 px-2 font-bold font-mono" style={{ color: LEVEL_COLORS[r.level] }}>
                             {r.score.toFixed(1)}
+                          </td>
+                          <td className="text-right py-2 px-2">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => startEdit(i)}
+                                aria-label={`Editar ${row.period}`}
+                                className="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-amber-400 focus:ring-2 focus:ring-amber-400/50 focus:outline-none transition-colors"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteIndex(i)}
+                                aria-label={`Eliminar ${row.period}`}
+                                className="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-red-400 focus:ring-2 focus:ring-red-400/50 focus:outline-none transition-colors"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -919,6 +1062,68 @@ function DataEntryView({
           </CardContent>
         </Card>
       </div>
+
+      {/* Diálogo: eliminar período */}
+      <Dialog open={deleteIndex !== null} onOpenChange={(o) => !o && setDeleteIndex(null)}>
+        <DialogContent className="bg-zinc-900 border-zinc-700 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-100">Eliminar período</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-zinc-400">
+            ¿Seguro que querés eliminar{" "}
+            <strong className="text-zinc-200">
+              {deleteIndex !== null ? data[deleteIndex]?.period : ""}
+            </strong>
+            ? Esta acción no se puede deshacer.
+          </p>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" size="sm" onClick={() => setDeleteIndex(null)} className="border-zinc-700">
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (deleteIndex !== null) {
+                  if (editingIndex === deleteIndex) resetForm()
+                  onDeletePeriod(deleteIndex)
+                }
+                setDeleteIndex(null)
+              }}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              Eliminar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo: limpiar todo */}
+      <Dialog open={clearConfirm} onOpenChange={setClearConfirm}>
+        <DialogContent className="bg-zinc-900 border-zinc-700 max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-100">Limpiar todos los datos</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-zinc-400">
+            Se eliminarán todos los períodos cargados. Esta acción no se puede deshacer.
+          </p>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" size="sm" onClick={() => setClearConfirm(false)} className="border-zinc-700">
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                resetForm()
+                onClearAll()
+                setClearConfirm(false)
+              }}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              Limpiar todo
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -1547,6 +1752,38 @@ function MethodView() {
   )
 }
 
+// ─── Empty State ──────────────────────────────────────────────
+
+function EmptyState({
+  onGoToEntry,
+  onRestoreSample,
+}: {
+  onGoToEntry: () => void
+  onRestoreSample: () => void
+}) {
+  return (
+    <Card className="bg-zinc-900/60 border-zinc-800">
+      <CardContent className="p-10 flex flex-col items-center text-center gap-4">
+        <ClipboardList className="h-10 w-10 text-zinc-600" />
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-100">No hay períodos cargados</h2>
+          <p className="text-sm text-zinc-400 mt-1">
+            Ingresá tu primer período o restaurá los datos de ejemplo para explorar la herramienta.
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-3">
+          <Button onClick={onGoToEntry} className="bg-amber-500 hover:bg-amber-600 text-zinc-900">
+            <ClipboardList className="h-4 w-4 mr-1.5" /> Ingresar datos
+          </Button>
+          <Button variant="outline" onClick={onRestoreSample} className="border-zinc-700">
+            <RefreshCw className="h-4 w-4 mr-1.5" /> Datos de ejemplo
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Main App ─────────────────────────────────────────────────
 
 const NAV_TABS = [
@@ -1559,15 +1796,51 @@ const NAV_TABS = [
 
 export default function App() {
   const [tab, setTab] = useState("report")
-  const [data, setData] = useState<PeriodData[]>(SAMPLE_DATA)
-  const [selectedIndex, setSelectedIndex] = useState(SAMPLE_DATA.length - 1)
+  const [data, setData] = useState<PeriodData[]>(loadPeriods)
+  const [selectedIndex, setSelectedIndex] = useState(() => Math.max(0, data.length - 1))
+  const [usingSample, setUsingSample] = useState(() => !hasStoredPeriods())
+
+  // Persistir en localStorage ante cualquier cambio de datos.
+  useEffect(() => {
+    savePeriods(data)
+  }, [data])
+
+  // Mantener selectedIndex dentro de rango cuando cambia el largo de data.
+  useEffect(() => {
+    if (selectedIndex > data.length - 1) {
+      setSelectedIndex(Math.max(0, data.length - 1))
+    }
+  }, [data.length, selectedIndex])
 
   const handleAddPeriod = (period: PeriodData) => {
+    setUsingSample(false)
     setData((prev) => {
       const next = [...prev, period]
       setSelectedIndex(next.length - 1)
       return next
     })
+  }
+
+  const handleUpdatePeriod = (index: number, period: PeriodData) => {
+    setUsingSample(false)
+    setData((prev) => prev.map((p, i) => (i === index ? period : p)))
+  }
+
+  const handleDeletePeriod = (index: number) => {
+    setData((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleRestoreSample = () => {
+    clearPeriods()
+    setData(SAMPLE_DATA)
+    setSelectedIndex(SAMPLE_DATA.length - 1)
+    setUsingSample(true)
+  }
+
+  const handleClearAll = () => {
+    setData([])
+    setSelectedIndex(0)
+    setUsingSample(false)
   }
 
   return (
@@ -1581,12 +1854,14 @@ export default function App() {
                 BH360
               </h1>
               <span className="text-xs text-zinc-500 hidden sm:inline">Business Health 360</span>
-              <Badge
-                variant="outline"
-                className="text-[10px] border-amber-500/50 text-amber-400 bg-amber-500/10 ml-2"
-              >
-                Data de prueba
-              </Badge>
+              {usingSample && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-amber-500/50 text-amber-400 bg-amber-500/10 ml-2"
+                >
+                  Data de prueba
+                </Badge>
+              )}
             </div>
 
             <div className="flex items-center gap-4">
@@ -1633,13 +1908,23 @@ export default function App() {
 
         {/* Main Content */}
         <main className="flex-1 max-w-7xl mx-auto px-4 py-6 w-full">
-          {tab === "report" && (
+          {data.length === 0 && tab !== "entry" && tab !== "meth" && (
+            <EmptyState onGoToEntry={() => setTab("entry")} onRestoreSample={handleRestoreSample} />
+          )}
+          {tab === "report" && data.length > 0 && (
             <ReportView data={data} selectedIndex={selectedIndex} />
           )}
           {tab === "entry" && (
-            <DataEntryView data={data} onAddPeriod={handleAddPeriod} />
+            <DataEntryView
+              data={data}
+              onAddPeriod={handleAddPeriod}
+              onUpdatePeriod={handleUpdatePeriod}
+              onDeletePeriod={handleDeletePeriod}
+              onRestoreSample={handleRestoreSample}
+              onClearAll={handleClearAll}
+            />
           )}
-          {tab === "sim" && (
+          {tab === "sim" && data.length > 0 && (
             <SimView data={data} selectedIndex={selectedIndex} />
           )}
           {tab === "meth" && <MethodView />}
