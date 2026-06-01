@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import {
   Radar,
   RadarChart,
@@ -94,12 +94,42 @@ import wantedLogo from "@/assets/wanted-blanco.png"
 
 // ─── Utility Components ───────────────────────────────────────
 
-function AnimatedScore({ value, duration = 1200 }: { value: number; duration?: number }) {
+const ANIMATION_DURATION_MS = 1200
+const RING_ANIMATION_DELAY_MS = 100
+
+// Respeta la preferencia del sistema de movimiento reducido (WCAG 2.1).
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false)
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
+    setReduced(mq.matches)
+    const handler = () => setReduced(mq.matches)
+    mq.addEventListener("change", handler)
+    return () => mq.removeEventListener("change", handler)
+  }, [])
+  return reduced
+}
+
+function AnimatedScore({
+  value,
+  duration = ANIMATION_DURATION_MS,
+}: {
+  value: number
+  duration?: number
+}) {
   const [display, setDisplay] = useState(0)
   const ref = useRef<number | null>(null)
+  const reducedMotion = usePrefersReducedMotion()
 
   useEffect(() => {
+    // Sin animación si el usuario pide movimiento reducido.
+    if (reducedMotion) {
+      setDisplay(value)
+      return
+    }
     const start = performance.now()
+    // Closure intencional: animamos desde el `display` previo hacia el `value` nuevo.
     const from = display
     const to = value
 
@@ -118,7 +148,7 @@ function AnimatedScore({ value, duration = 1200 }: { value: number; duration?: n
       if (ref.current) cancelAnimationFrame(ref.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, duration])
+  }, [value, duration, reducedMotion])
 
   return <span>{display.toFixed(1)}</span>
 }
@@ -167,13 +197,17 @@ function ScoreRing({
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
   const [offset, setOffset] = useState(circumference)
+  const reducedMotion = usePrefersReducedMotion()
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setOffset(circumference - (score / 100) * circumference)
-    }, 100)
+    const target = circumference - (score / 100) * circumference
+    if (reducedMotion) {
+      setOffset(target)
+      return
+    }
+    const timer = setTimeout(() => setOffset(target), RING_ANIMATION_DELAY_MS)
     return () => clearTimeout(timer)
-  }, [score, circumference])
+  }, [score, circumference, reducedMotion])
 
   const fillColor = color ?? LEVEL_COLORS[getLevel(score)]
 
@@ -203,7 +237,7 @@ function ScoreRing({
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          className="transition-all duration-1000 ease-out"
+          className={reducedMotion ? "" : "transition-all duration-1000 ease-out"}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -354,8 +388,11 @@ function ReportView({
       ? compareIndex
       : null
   const previous = cmp !== null ? data[cmp] : undefined
-  const result = calculateBH360(current)
-  const prevResult = previous ? calculateBH360(previous) : undefined
+  const result = useMemo(() => calculateBH360(current), [current])
+  const prevResult = useMemo(
+    () => (previous ? calculateBH360(previous) : undefined),
+    [previous]
+  )
 
   const radarData = DIMENSIONS.map((dim) => ({
     dimension: dim.label.split(" ")[0],
@@ -736,17 +773,34 @@ function DataEntryView({
     ? (form.period?.length ?? 0) > 0 && (form.campaign?.length ?? 0) > 0
     : true
 
-  const preview = calculateBH360({
-    period: form.period ?? "",
-    brand: form.brand ?? "",
-    campaign: form.campaign ?? "",
-    investment: investmentTotal,
-    reach: form.reach ?? 0,
-    purchase: form.purchase ?? 0,
-    sentiment: form.sentiment ?? 0,
-    sales: form.sales ?? 0,
-    mediaMix,
-  })
+  const preview = useMemo(
+    () =>
+      calculateBH360({
+        period: form.period ?? "",
+        brand: form.brand ?? "",
+        campaign: form.campaign ?? "",
+        investment: investmentTotal,
+        reach: form.reach ?? 0,
+        purchase: form.purchase ?? 0,
+        sentiment: form.sentiment ?? 0,
+        sales: form.sales ?? 0,
+        mediaMix,
+      }),
+    [
+      form.period,
+      form.brand,
+      form.campaign,
+      form.reach,
+      form.purchase,
+      form.sentiment,
+      form.sales,
+      mediaMix,
+      investmentTotal,
+    ]
+  )
+
+  // Resultados por período memoizados para la tabla histórica.
+  const periodResults = useMemo(() => data.map((p) => calculateBH360(p)), [data])
 
   const resetForm = () => {
     setStep(0)
@@ -1037,7 +1091,7 @@ function DataEntryView({
                   </thead>
                   <tbody>
                     {data.map((row, i) => {
-                      const r = calculateBH360(row)
+                      const r = periodResults[i]
                       return (
                         <tr
                           key={i}
@@ -1231,7 +1285,7 @@ function SimView({
   selectedIndex: number
 }) {
   const current = data[selectedIndex]
-  const actualResult = calculateBH360(current)
+  const actualResult = useMemo(() => calculateBH360(current), [current])
 
   const [sim, setSim] = useState<SimDraft>(() => makeDraft(current))
 
@@ -1241,16 +1295,19 @@ function SimView({
   }, [current])
 
   const simInvestment = sumMediaMix(sim.media)
-  const simPeriod: PeriodData = {
-    ...current,
-    investment: simInvestment,
-    reach: sim.reach,
-    purchase: sim.purchase,
-    sentiment: sim.sentiment,
-    sales: sim.sales,
-    mediaMix: sim.media,
-  }
-  const simResult = calculateBH360(simPeriod)
+  const simResult = useMemo(
+    () =>
+      calculateBH360({
+        ...current,
+        investment: simInvestment,
+        reach: sim.reach,
+        purchase: sim.purchase,
+        sentiment: sim.sentiment,
+        sales: sim.sales,
+        mediaMix: sim.media,
+      }),
+    [current, sim, simInvestment]
+  )
   const scoreDelta = Math.round((simResult.score - actualResult.score) * 10) / 10
 
   const simRealValue = (dimId: string): number =>

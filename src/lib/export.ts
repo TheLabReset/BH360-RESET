@@ -1,5 +1,5 @@
 // Exportación de períodos BH360 a un archivo Excel (.xlsx) con SheetJS.
-import * as XLSX from "xlsx"
+// xlsx se carga de forma diferida (import dinámico) para no inflar el bundle inicial.
 import {
   DIMENSIONS,
   MEDIA_CHANNELS,
@@ -10,9 +10,9 @@ import {
   type PeriodData,
 } from "./bh360"
 
-// Hoja "Períodos": datos crudos + BH360 + nivel + normalizados por dimensión.
-function buildPeriodsSheet(data: PeriodData[]) {
-  const rows = data.map((p) => {
+// Filas de la hoja "Períodos": crudos + normalizados + BH360 + nivel.
+function periodRows(data: PeriodData[]): Record<string, string | number>[] {
+  return data.map((p) => {
     const r = calculateBH360(p)
     const row: Record<string, string | number> = {
       Período: p.period,
@@ -30,12 +30,11 @@ function buildPeriodsSheet(data: PeriodData[]) {
     row["Nivel"] = LEVEL_LABELS[r.level]
     return row
   })
-  return XLSX.utils.json_to_sheet(rows)
 }
 
-// Hoja "Mix de Medios": inversión por canal y período.
-function buildMediaSheet(data: PeriodData[]) {
-  const rows = data.map((p) => {
+// Filas de la hoja "Mix de Medios": inversión por canal y período.
+function mediaRows(data: PeriodData[]): Record<string, string | number>[] {
+  return data.map((p) => {
     const mix = getMediaMix(p)
     const row: Record<string, string | number> = { Período: p.period }
     for (const c of MEDIA_CHANNELS) {
@@ -44,13 +43,13 @@ function buildMediaSheet(data: PeriodData[]) {
     row["Total (S/)"] = p.investment
     return row
   })
-  return XLSX.utils.json_to_sheet(rows)
 }
 
-export function exportToExcel(data: PeriodData[], fileName = "BH360.xlsx"): void {
+export async function exportToExcel(data: PeriodData[], fileName = "BH360.xlsx"): Promise<void> {
   if (!data.length) return
+  const XLSX = await import("xlsx")
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, buildPeriodsSheet(data), "Períodos")
-  XLSX.utils.book_append_sheet(wb, buildMediaSheet(data), "Mix de Medios")
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(periodRows(data)), "Períodos")
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mediaRows(data)), "Mix de Medios")
   XLSX.writeFile(wb, fileName)
 }
