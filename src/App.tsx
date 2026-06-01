@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Radar,
   RadarChart,
@@ -31,6 +31,8 @@ import {
   SlidersHorizontal,
   ClipboardList,
   RotateCcw,
+  Layers,
+  Lightbulb,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -66,12 +68,17 @@ import {
   LEVEL_COLORS,
   LEVEL_LABELS,
   SAMPLE_DATA,
+  MEDIA_CHANNELS,
   calculateBH360,
   formatDimensionValue,
+  formatCurrency,
   getDimensionValue,
-  normalize,
-  normalizeNSS,
+  getMediaMix,
+  sumMediaMix,
+  emptyMediaMix,
+  normalizeDimension,
   type PeriodData,
+  type MediaMix,
   type NormalizedScores,
 } from "@/lib/bh360"
 
@@ -218,9 +225,7 @@ function Delta({ current, previous }: { current: number; previous?: number }) {
 
 function Spark({ data, dimId }: { data: PeriodData[]; dimId: string }) {
   const points = data.map((d) => ({
-    v: dimId === "sentiment"
-      ? normalizeNSS(getDimensionValue(d, dimId))
-      : normalize(getDimensionValue(d, dimId), DIMENSIONS.find((x) => x.id === dimId)!.floor, DIMENSIONS.find((x) => x.id === dimId)!.ceiling),
+    v: normalizeDimension(dimId, getDimensionValue(d, dimId)),
   }))
   return (
     <ResponsiveContainer width={80} height={32}>
@@ -280,6 +285,42 @@ function getLevel(score: number): string {
   if (score <= 70) return "moderate"
   if (score <= 85) return "strong"
   return "exceptional"
+}
+
+// Barra horizontal apilada con la participación de cada medio en la inversión.
+function MediaShareBar({ mix, height = 28 }: { mix: MediaMix; height?: number }) {
+  const total = sumMediaMix(mix) || 1
+  const row: Record<string, number | string> = { name: "mix" }
+  MEDIA_CHANNELS.forEach((c) => {
+    row[c.id] = mix[c.id]
+  })
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart
+        layout="vertical"
+        data={[row]}
+        margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+      >
+        <XAxis type="number" hide domain={[0, total]} />
+        <YAxis type="category" dataKey="name" hide />
+        {MEDIA_CHANNELS.map((c, i) => (
+          <Bar
+            key={c.id}
+            dataKey={c.id}
+            stackId="mix"
+            fill={c.color}
+            radius={
+              i === 0
+                ? [4, 0, 0, 4]
+                : i === MEDIA_CHANNELS.length - 1
+                ? [0, 4, 4, 0]
+                : 0
+            }
+          />
+        ))}
+      </BarChart>
+    </ResponsiveContainer>
+  )
 }
 
 // ─── Report View ──────────────────────────────────────────────
@@ -493,6 +534,47 @@ function ReportView({
         </CardContent>
       </Card>
 
+      {/* Mix de Medios */}
+      <Card className="bg-zinc-900/60 border-zinc-800">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm text-zinc-400 flex items-center gap-2">
+            <Layers className="h-4 w-4" /> Mix de Medios
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {(() => {
+            const media = getMediaMix(current)
+            const total = sumMediaMix(media) || 1
+            return (
+              <>
+                <MediaShareBar mix={media} height={32} />
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {MEDIA_CHANNELS.map((c) => {
+                    const v = media[c.id]
+                    const share = (v / total) * 100
+                    return (
+                      <div key={c.id} className="flex items-center gap-2">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: c.color }}
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs text-zinc-300 truncate">{c.label}</p>
+                          <p className="text-xs font-mono text-zinc-500">
+                            {formatCurrency(v)} · {share.toFixed(0)}%
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )
+          })()}
+        </CardContent>
+      </Card>
+
       {/* Diagnostico */}
       <Card
         className="bg-zinc-900/60 border-l-4"
@@ -540,10 +622,21 @@ function DataEntryView({
     purchase: 0,
     sentiment: 0,
     sales: 0,
+    mediaMix: emptyMediaMix(),
   })
 
   const update = (field: string, value: string | number) =>
     setForm((prev) => ({ ...prev, [field]: value }))
+
+  const updateMedia = (id: keyof MediaMix, value: number) =>
+    setForm((prev) => ({
+      ...prev,
+      mediaMix: { ...(prev.mediaMix ?? emptyMediaMix()), [id]: Math.max(0, value) },
+    }))
+
+  // La inversión total se deriva de la suma del desglose por medio.
+  const mediaMix = form.mediaMix ?? emptyMediaMix()
+  const investmentTotal = sumMediaMix(mediaMix)
 
   const canNext = step === 0
     ? (form.period?.length ?? 0) > 0 && (form.campaign?.length ?? 0) > 0
@@ -553,15 +646,16 @@ function DataEntryView({
     period: form.period ?? "",
     brand: form.brand ?? "",
     campaign: form.campaign ?? "",
-    investment: form.investment ?? 0,
+    investment: investmentTotal,
     reach: form.reach ?? 0,
     purchase: form.purchase ?? 0,
     sentiment: form.sentiment ?? 0,
     sales: form.sales ?? 0,
+    mediaMix,
   })
 
   const handleSave = () => {
-    onAddPeriod(form as PeriodData)
+    onAddPeriod({ ...(form as PeriodData), investment: investmentTotal, mediaMix })
     setStep(0)
     setForm({
       brand: "San Fernando",
@@ -572,6 +666,7 @@ function DataEntryView({
       purchase: 0,
       sentiment: 0,
       sales: 0,
+      mediaMix: emptyMediaMix(),
     })
   }
 
@@ -649,22 +744,66 @@ function DataEntryView({
                     </div>
                     <InfoModal dim={dim} />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={fieldId}>
-                      Valor ({dim.unit})
-                    </Label>
-                    <Input
-                      id={fieldId}
-                      type="number"
-                      placeholder={`Rango: ${dim.floor} - ${dim.ceiling}`}
-                      value={form[fieldId as keyof typeof form] ?? 0}
-                      onChange={(e) => update(fieldId, Number(e.target.value))}
-                      className="bg-zinc-800 border-zinc-700"
-                    />
-                    <p className="text-xs text-zinc-500">
-                      Fuente: {dim.source}
-                    </p>
-                  </div>
+                  {dim.id === "investment" ? (
+                    <div className="space-y-3">
+                      <p className="text-xs text-zinc-500">
+                        Ingresá la inversión por medio. Su suma define la inversión total
+                        de la campaña.
+                      </p>
+                      {MEDIA_CHANNELS.map((c) => (
+                        <div key={c.id} className="space-y-1">
+                          <Label
+                            htmlFor={`media-${c.id}`}
+                            className="flex items-center gap-2 text-xs"
+                          >
+                            <span
+                              className="w-2 h-2 rounded-full"
+                              style={{ backgroundColor: c.color }}
+                              aria-hidden="true"
+                            />
+                            {c.label} (S/)
+                          </Label>
+                          <Input
+                            id={`media-${c.id}`}
+                            type="number"
+                            min={0}
+                            placeholder="0"
+                            value={mediaMix[c.id] || ""}
+                            onChange={(e) => updateMedia(c.id, Number(e.target.value))}
+                            className="bg-zinc-800 border-zinc-700"
+                          />
+                        </div>
+                      ))}
+                      <Separator className="bg-zinc-800" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-zinc-400">Inversión total</span>
+                        <span className="font-mono font-bold text-zinc-100">
+                          {formatCurrency(investmentTotal)}
+                        </span>
+                      </div>
+                      {investmentTotal > dim.ceiling && (
+                        <p className="text-[11px] text-amber-400">
+                          Supera el techo de {formatCurrency(dim.ceiling)} por campaña; la
+                          dimensión se mantiene en 100/100.
+                        </p>
+                      )}
+                      <MediaShareBar mix={mediaMix} />
+                      <p className="text-xs text-zinc-500">Fuente: {dim.source}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label htmlFor={fieldId}>Valor ({dim.unit})</Label>
+                      <Input
+                        id={fieldId}
+                        type="number"
+                        placeholder={`Rango: ${dim.floor} - ${dim.ceiling}`}
+                        value={(form[fieldId as keyof PeriodData] as number | undefined) ?? 0}
+                        onChange={(e) => update(fieldId, Number(e.target.value))}
+                        className="bg-zinc-800 border-zinc-700"
+                      />
+                      <p className="text-xs text-zinc-500">Fuente: {dim.source}</p>
+                    </div>
+                  )}
                 </div>
               )
             })()}
@@ -786,6 +925,47 @@ function DataEntryView({
 
 // ─── Simulator View ───────────────────────────────────────────
 
+type SimDraft = {
+  reach: number
+  purchase: number
+  sentiment: number
+  sales: number
+  media: MediaMix
+}
+
+const SLIDER_STEP: Record<string, number> = {
+  investment: 5_000,
+  reach: 1,
+  purchase: 1,
+  sentiment: 1,
+  sales: 100_000,
+}
+
+const INVESTMENT_CEILING =
+  DIMENSIONS.find((d) => d.id === "investment")?.ceiling ?? 500_000
+
+function makeDraft(p: PeriodData): SimDraft {
+  return {
+    reach: p.reach,
+    purchase: p.purchase,
+    sentiment: p.sentiment,
+    sales: p.sales,
+    media: { ...getMediaMix(p) },
+  }
+}
+
+function scaleMix(mix: MediaMix, factor: number): MediaMix {
+  const next = emptyMediaMix()
+  MEDIA_CHANNELS.forEach((c) => {
+    next[c.id] = Math.round(mix[c.id] * factor)
+  })
+  return next
+}
+
+function clamp(value: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, value))
+}
+
 function SimView({
   data,
   selectedIndex,
@@ -796,75 +976,116 @@ function SimView({
   const current = data[selectedIndex]
   const actualResult = calculateBH360(current)
 
-  const [simValues, setSimValues] = useState<Record<string, number>>(() => {
-    const initial: Record<string, number> = {}
-    for (const dim of DIMENSIONS) {
-      initial[dim.id] = actualResult.normalized[dim.id as keyof NormalizedScores]
+  const [sim, setSim] = useState<SimDraft>(() => makeDraft(current))
+
+  // Reiniciar el escenario cuando cambia el período seleccionado.
+  useEffect(() => {
+    setSim(makeDraft(current))
+  }, [current])
+
+  const simInvestment = sumMediaMix(sim.media)
+  const simPeriod: PeriodData = {
+    ...current,
+    investment: simInvestment,
+    reach: sim.reach,
+    purchase: sim.purchase,
+    sentiment: sim.sentiment,
+    sales: sim.sales,
+    mediaMix: sim.media,
+  }
+  const simResult = calculateBH360(simPeriod)
+  const scoreDelta = Math.round((simResult.score - actualResult.score) * 10) / 10
+
+  const simRealValue = (dimId: string): number =>
+    dimId === "investment"
+      ? simInvestment
+      : (sim[dimId as keyof Omit<SimDraft, "media">] as number)
+
+  const setDim = (dimId: string, value: number) =>
+    setSim((prev) => ({ ...prev, [dimId]: value }))
+
+  const setMedia = (id: keyof MediaMix, value: number) =>
+    setSim((prev) => ({
+      ...prev,
+      media: { ...prev.media, [id]: Math.max(0, Math.round(value)) },
+    }))
+
+  const resetSim = () => setSim(makeDraft(current))
+
+  // Escenario optimista/pesimista: mueve cada dimensión hacia su techo/piso.
+  const buildScenario = (towardCeiling: boolean): SimDraft => {
+    const factor = 0.3
+    const adjust = (dimId: string): number => {
+      const dim = DIMENSIONS.find((d) => d.id === dimId)!
+      const v = getDimensionValue(current, dimId)
+      return Math.round(
+        towardCeiling
+          ? v + (dim.ceiling - v) * factor
+          : v - (v - dim.floor) * factor
+      )
     }
-    return initial
-  })
-
-  const resetSim = useCallback(() => {
-    const initial: Record<string, number> = {}
-    for (const dim of DIMENSIONS) {
-      initial[dim.id] = actualResult.normalized[dim.id as keyof NormalizedScores]
+    return {
+      reach: adjust("reach"),
+      purchase: adjust("purchase"),
+      sentiment: adjust("sentiment"),
+      sales: adjust("sales"),
+      media: scaleMix(getMediaMix(current), towardCeiling ? 1.3 : 0.7),
     }
-    setSimValues(initial)
-  }, [actualResult])
-
-  // Calculate simulated score from normalized values
-  const simScore = DIMENSIONS.reduce(
-    (acc, dim) => acc + (simValues[dim.id] ?? 0) * dim.weight,
-    0
-  )
-
-  const simRadarData = DIMENSIONS.map((dim) => ({
-    dimension: dim.label.split(" ")[0],
-    actual: actualResult.normalized[dim.id as keyof NormalizedScores],
-    simulado: simValues[dim.id] ?? 0,
-  }))
+  }
 
   const presets = [
     {
       label: "+50% Inversión",
-      apply: () => {
-        const v = Math.min(100, (simValues.investment ?? 0) * 1.5)
-        setSimValues((prev) => ({ ...prev, investment: v }))
-      },
+      apply: () => setSim((p) => ({ ...p, media: scaleMix(p.media, 1.5) })),
     },
     {
-      label: "Sentiment -20",
-      apply: () => {
-        const v = Math.max(0, (simValues.sentiment ?? 0) - 20)
-        setSimValues((prev) => ({ ...prev, sentiment: v }))
-      },
+      label: "Sentiment −20",
+      apply: () =>
+        setSim((p) => ({ ...p, sentiment: clamp(p.sentiment - 20, -100, 100) })),
     },
-    {
-      label: "Optimista",
-      apply: () => {
-        const optimistic: Record<string, number> = {}
-        for (const dim of DIMENSIONS) {
-          optimistic[dim.id] = Math.min(100, actualResult.normalized[dim.id as keyof NormalizedScores] * 1.3)
-        }
-        setSimValues(optimistic)
-      },
-    },
-    {
-      label: "Pesimista",
-      apply: () => {
-        const pessimistic: Record<string, number> = {}
-        for (const dim of DIMENSIONS) {
-          pessimistic[dim.id] = actualResult.normalized[dim.id as keyof NormalizedScores] * 0.7
-        }
-        setSimValues(pessimistic)
-      },
-    },
+    { label: "Optimista", apply: () => setSim(buildScenario(true)) },
+    { label: "Pesimista", apply: () => setSim(buildScenario(false)) },
   ]
+
+  const simRadarData = DIMENSIONS.map((dim) => ({
+    dimension: dim.label.split(" ")[0],
+    actual: actualResult.normalized[dim.id as keyof NormalizedScores],
+    simulado: simResult.normalized[dim.id as keyof NormalizedScores],
+  }))
+
+  const contribData = DIMENSIONS.map((dim) => ({
+    name: dim.label.split(" ")[0],
+    simulado: Math.round(simResult.contributions[dim.id] * 10) / 10,
+    fill: PILLAR_COLORS[dim.pillar],
+  }))
+
+  // Palanca de mayor impacto: dimensión con mayor cambio en su aporte.
+  const topLever = DIMENSIONS.map((dim) => ({
+    dim,
+    delta: simResult.contributions[dim.id] - actualResult.contributions[dim.id],
+  })).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0]
+
+  const levelChanged = simResult.level !== actualResult.level
 
   return (
     <div className="space-y-6">
+      {/* Banner explicativo */}
+      <Card className="bg-zinc-900/60 border-zinc-800 border-l-4 border-l-amber-400/60">
+        <CardContent className="p-4 flex items-start gap-3">
+          <Lightbulb className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
+          <p className="text-sm text-zinc-400 leading-relaxed">
+            El BH360 va de <strong className="text-zinc-200">0 a 100</strong>. Cada
+            dimensión se ingresa en su <strong className="text-zinc-200">unidad real</strong>{" "}
+            (S/, %, NSS), se convierte a una escala 0-100 según su rango meta
+            (el techo equivale a 100) y aporta al índice según su{" "}
+            <strong className="text-zinc-200">peso</strong>. Mové los controles para
+            simular escenarios.
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sliders */}
+        {/* Controles */}
         <div className="lg:col-span-1 space-y-4">
           <Card className="bg-zinc-900/60 border-zinc-800">
             <CardHeader className="pb-2">
@@ -876,27 +1097,111 @@ function SimView({
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
-              {DIMENSIONS.map((dim) => (
-                <div key={dim.id} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <DimIcon id={dim.id} className="h-4 w-4 text-zinc-400" />
-                      <span className="text-xs text-zinc-400">{dim.label.split(" ")[0]}</span>
+              {DIMENSIONS.map((dim) => {
+                const realValue = simRealValue(dim.id)
+                const norm = simResult.normalized[dim.id as keyof NormalizedScores]
+                const contrib = simResult.contributions[dim.id]
+                const isInvestment = dim.id === "investment"
+                return (
+                  <div key={dim.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <DimIcon id={dim.id} className="h-4 w-4 text-zinc-400" />
+                        <span className="text-xs text-zinc-300">{dim.label.split(" ")[0]}</span>
+                      </div>
+                      <span className="text-xs font-mono text-zinc-100">
+                        {formatDimensionValue(dim.id, realValue)}
+                      </span>
                     </div>
-                    <span className="text-xs font-mono text-zinc-300">
-                      {(simValues[dim.id] ?? 0).toFixed(0)}
-                    </span>
+                    {isInvestment ? (
+                      <p className="text-[11px] text-zinc-500 italic">
+                        Se ajusta en &quot;Inversión por Medio&quot; ↓
+                      </p>
+                    ) : (
+                      <Slider
+                        value={[realValue]}
+                        min={dim.floor}
+                        max={dim.ceiling}
+                        step={SLIDER_STEP[dim.id]}
+                        aria-label={`${dim.label} en ${dim.unit}`}
+                        onValueChange={([v]) => setDim(dim.id, v)}
+                        className="[&_[role=slider]]:bg-amber-400"
+                      />
+                    )}
+                    <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                      <span>
+                        Normalizado:{" "}
+                        <span className="font-mono text-zinc-400">{norm.toFixed(0)}/100</span>
+                      </span>
+                      <span>
+                        Peso {(dim.weight * 100).toFixed(0)}% ·{" "}
+                        <span className="text-amber-400/80">+{contrib.toFixed(1)} pts</span>
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-zinc-600">
+                      Rango meta: {formatDimensionValue(dim.id, dim.floor)} →{" "}
+                      {formatDimensionValue(dim.id, dim.ceiling)} (100 ={" "}
+                      {formatDimensionValue(dim.id, dim.ceiling)})
+                    </p>
                   </div>
-                  <Slider
-                    value={[simValues[dim.id] ?? 0]}
-                    max={100}
-                    step={1}
-                    aria-label={dim.label}
-                    onValueChange={([v]) => setSimValues((prev) => ({ ...prev, [dim.id]: v }))}
-                    className="[&_[role=slider]]:bg-amber-400"
-                  />
-                </div>
-              ))}
+                )
+              })}
+            </CardContent>
+          </Card>
+
+          {/* Inversión por medio */}
+          <Card className="bg-zinc-900/60 border-zinc-800">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-zinc-400 flex items-center gap-2">
+                <Layers className="h-4 w-4" /> Inversión por Medio
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {MEDIA_CHANNELS.map((c) => {
+                const v = sim.media[c.id]
+                const share = simInvestment > 0 ? (v / simInvestment) * 100 : 0
+                return (
+                  <div key={c.id} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: c.color }}
+                          aria-hidden="true"
+                        />
+                        <span className="text-zinc-300">{c.label}</span>
+                      </div>
+                      <span className="font-mono text-zinc-200">
+                        {formatCurrency(v)}{" "}
+                        <span className="text-zinc-500">({share.toFixed(0)}%)</span>
+                      </span>
+                    </div>
+                    <Slider
+                      value={[v]}
+                      min={0}
+                      max={INVESTMENT_CEILING}
+                      step={5_000}
+                      aria-label={`Inversión en ${c.label}`}
+                      onValueChange={([val]) => setMedia(c.id, val)}
+                      className="[&_[role=slider]]:bg-amber-400"
+                    />
+                  </div>
+                )
+              })}
+              <Separator className="bg-zinc-800" />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-400">Inversión total</span>
+                <span className="font-mono font-bold text-zinc-100">
+                  {formatCurrency(simInvestment)}
+                </span>
+              </div>
+              {simInvestment > INVESTMENT_CEILING && (
+                <p className="text-[10px] text-amber-400">
+                  La inversión supera el techo de {formatCurrency(INVESTMENT_CEILING)}; la
+                  dimensión se mantiene en 100/100.
+                </p>
+              )}
+              <MediaShareBar mix={sim.media} />
             </CardContent>
           </Card>
 
@@ -915,7 +1220,7 @@ function SimView({
           </div>
         </div>
 
-        {/* Score + Radar */}
+        {/* Resultados */}
         <div className="lg:col-span-2 space-y-6">
           <Card className="bg-zinc-900/60 border-zinc-800">
             <CardContent className="p-6 flex flex-col items-center gap-4">
@@ -926,13 +1231,94 @@ function SimView({
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-zinc-500 mb-2">Simulado</p>
-                  <ScoreRing score={simScore} size={120} strokeWidth={8} color="#f59e0b" />
+                  <ScoreRing
+                    score={simResult.score}
+                    size={120}
+                    strokeWidth={8}
+                    color={LEVEL_COLORS[simResult.level]}
+                  />
                 </div>
               </div>
-              <Delta
-                current={Math.round(simScore * 10) / 10}
-                previous={actualResult.score}
-              />
+              <Delta current={simResult.score} previous={actualResult.score} />
+            </CardContent>
+          </Card>
+
+          {/* Insights */}
+          <Card className="bg-zinc-900/60 border-zinc-800">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-zinc-400 flex items-center gap-2">
+                <Lightbulb className="h-4 w-4" /> Lectura del Escenario
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-zinc-300">
+              <p>
+                El BH360 simulado es{" "}
+                <strong style={{ color: LEVEL_COLORS[simResult.level] }}>
+                  {simResult.score.toFixed(1)}
+                </strong>{" "}
+                ({LEVEL_LABELS[simResult.level]}),{" "}
+                {scoreDelta === 0
+                  ? "sin cambio respecto al"
+                  : scoreDelta > 0
+                  ? `+${scoreDelta} pts sobre el`
+                  : `${scoreDelta} pts bajo el`}{" "}
+                actual de {actualResult.score.toFixed(1)}.
+              </p>
+              {levelChanged && (
+                <p className="text-zinc-400">
+                  El nivel de salud {scoreDelta > 0 ? "sube" : "baja"} de{" "}
+                  {LEVEL_LABELS[actualResult.level]} a {LEVEL_LABELS[simResult.level]}.
+                </p>
+              )}
+              {Math.abs(topLever.delta) > 0.05 && (
+                <p className="text-zinc-400">
+                  La palanca de mayor impacto es{" "}
+                  <strong className="text-zinc-200">{topLever.dim.label}</strong> (
+                  {topLever.delta > 0 ? "+" : ""}
+                  {topLever.delta.toFixed(1)} pts).
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Aporte por dimensión */}
+          <Card className="bg-zinc-900/60 border-zinc-800">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-zinc-400">
+                Aporte al BH360 por Dimensión (simulado)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={contribData} layout="vertical" margin={{ left: 10, right: 24 }}>
+                  <XAxis
+                    type="number"
+                    domain={[0, 25]}
+                    tick={{ fill: "#71717a", fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fill: "#a1a1aa", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={70}
+                  />
+                  <RechartsTooltip
+                    contentStyle={{ backgroundColor: "#18181b", borderColor: "#3f3f46", borderRadius: 8 }}
+                    labelStyle={{ color: "#a1a1aa" }}
+                    itemStyle={{ color: "#f4f4f5" }}
+                    formatter={(v) => [`${Number(v).toFixed(1)} pts`, "Aporte"]}
+                  />
+                  <Bar dataKey="simulado" radius={[0, 4, 4, 0]}>
+                    {contribData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
 

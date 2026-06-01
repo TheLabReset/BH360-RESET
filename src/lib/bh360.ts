@@ -13,6 +13,14 @@ export interface DimensionConfig {
   justification: string
 }
 
+export interface MediaMix {
+  tvAbierta: number
+  digital: number
+  ooh: number
+  radio: number
+  periodico: number
+}
+
 export interface PeriodData {
   period: string
   brand: string
@@ -22,6 +30,9 @@ export interface PeriodData {
   purchase: number
   sentiment: number
   sales: number
+  // Desglose de inversión por medio. Su suma debe igualar a `investment`.
+  // Opcional para mantener compatibilidad con períodos antiguos sin desglose.
+  mediaMix?: MediaMix
 }
 
 export interface NormalizedScores {
@@ -50,11 +61,11 @@ export const DIMENSIONS: DimensionConfig[] = [
     pillar: "input",
     weight: 0.15,
     floor: 0,
-    ceiling: 8_000_000,
+    ceiling: 500_000,
     unit: "S/",
     source: "Agencia de medios",
     description:
-      "Inversión total en medios pagados durante el período. Incluye TV, digital, OOH, radio y prensa.",
+      "Inversión total en medios pagados durante la campaña. Se desagrega por medio (TV Abierta, Digital, OOH, Radio, Periódico) y su suma alimenta esta dimensión.",
     justification:
       "Binet & Davis (IPA, 2025): el presupuesto explica el 89% de las variaciones en beneficio. Es el input más controlable por la marca.",
   },
@@ -144,46 +155,130 @@ export const LEVEL_LABELS: Record<string, string> = {
   exceptional: "Excepcional",
 }
 
+// ─── Mix de medios ────────────────────────────────────────────
+
+export interface MediaChannelConfig {
+  id: keyof MediaMix
+  label: string
+  color: string
+}
+
+export const MEDIA_CHANNELS: MediaChannelConfig[] = [
+  { id: "tvAbierta", label: "TV Abierta", color: "#3b82f6" },
+  { id: "digital", label: "Digital", color: "#8b5cf6" },
+  { id: "ooh", label: "OOH", color: "#10b981" },
+  { id: "radio", label: "Radio", color: "#f59e0b" },
+  { id: "periodico", label: "Periódico", color: "#ec4899" },
+]
+
+// Distribución por defecto del presupuesto (suma 1.0). Calibrada para
+// FMCG en Perú: TV Abierta dominante, Digital en crecimiento.
+export const DEFAULT_MEDIA_SHARES: Record<keyof MediaMix, number> = {
+  tvAbierta: 0.45,
+  digital: 0.3,
+  ooh: 0.12,
+  radio: 0.09,
+  periodico: 0.04,
+}
+
+export function emptyMediaMix(): MediaMix {
+  return { tvAbierta: 0, digital: 0, ooh: 0, radio: 0, periodico: 0 }
+}
+
+export function sumMediaMix(mix: MediaMix): number {
+  return MEDIA_CHANNELS.reduce((acc, c) => acc + (mix[c.id] || 0), 0)
+}
+
+// Reparte un total entre medios según la distribución por defecto.
+// El último canal absorbe el redondeo para que la suma sea exacta.
+export function splitInvestment(total: number): MediaMix {
+  const mix = emptyMediaMix()
+  let allocated = 0
+  MEDIA_CHANNELS.forEach((c, i) => {
+    if (i === MEDIA_CHANNELS.length - 1) {
+      mix[c.id] = Math.max(0, Math.round(total - allocated))
+    } else {
+      const value = Math.round(total * DEFAULT_MEDIA_SHARES[c.id])
+      mix[c.id] = value
+      allocated += value
+    }
+  })
+  return mix
+}
+
+// Devuelve el mediaMix de un período, o uno derivado del total si no existe.
+export function getMediaMix(data: PeriodData): MediaMix {
+  return data.mediaMix ?? splitInvestment(data.investment)
+}
+
 export const SAMPLE_DATA: PeriodData[] = [
   {
     period: "Q3 2025",
     brand: "San Fernando",
     campaign: "Jueves de Pavita + Always On",
-    investment: 3_500_000,
+    investment: 180_000,
     reach: 68,
     purchase: 55,
     sentiment: 45,
     sales: 8_200_000,
+    mediaMix: {
+      tvAbierta: 81_000,
+      digital: 54_000,
+      ooh: 21_600,
+      radio: 16_200,
+      periodico: 7_200,
+    },
   },
   {
     period: "Q4 2025",
     brand: "San Fernando",
     campaign: "Navidad + Pavo",
-    investment: 4_800_000,
+    investment: 380_000,
     reach: 78,
     purchase: 65,
     sentiment: 58,
     sales: 10_200_000,
+    mediaMix: {
+      tvAbierta: 171_000,
+      digital: 114_000,
+      ooh: 45_600,
+      radio: 34_200,
+      periodico: 15_200,
+    },
   },
   {
     period: "Q1 2026",
     brand: "San Fernando",
     campaign: "Verano + Embutidos",
-    investment: 3_800_000,
+    investment: 250_000,
     reach: 77,
     purchase: 61,
     sentiment: 52,
     sales: 9_000_000,
+    mediaMix: {
+      tvAbierta: 112_500,
+      digital: 75_000,
+      ooh: 30_000,
+      radio: 22_500,
+      periodico: 10_000,
+    },
   },
   {
     period: "Q2 2026",
     brand: "San Fernando",
     campaign: "Día de la Madre + Always On",
-    investment: 6_800_000,
+    investment: 450_000,
     reach: 89,
     purchase: 79,
     sentiment: 75,
     sales: 11_500_000,
+    mediaMix: {
+      tvAbierta: 202_500,
+      digital: 135_000,
+      ooh: 54_000,
+      radio: 40_500,
+      periodico: 18_000,
+    },
   },
 ]
 
@@ -197,15 +292,29 @@ export function normalizeNSS(nss: number): number {
   return ((nss + 100) / 200) * 100
 }
 
+// Lookup de configuración por id para evitar números mágicos duplicados.
+const DIM_BY_ID: Record<string, DimensionConfig> = Object.fromEntries(
+  DIMENSIONS.map((d) => [d.id, d])
+)
+
+// Normaliza un valor crudo a 0-100 usando los goalposts de su dimensión.
+// El Sentiment usa la transformación especial de NSS (-100..+100).
+export function normalizeDimension(dimId: string, value: number): number {
+  const dim = DIM_BY_ID[dimId]
+  if (!dim) return 0
+  if (dimId === "sentiment") return normalizeNSS(value)
+  return normalize(value, dim.floor, dim.ceiling)
+}
+
 // ─── Función principal de cálculo ─────────────────────────────
 
 export function calculateBH360(data: PeriodData): BH360Result {
   const normalized: NormalizedScores = {
-    investment: normalize(data.investment, 0, 8_000_000),
-    reach: normalize(data.reach, 0, 95),
-    purchase: normalize(data.purchase, 0, 85),
-    sentiment: normalizeNSS(data.sentiment),
-    sales: normalize(data.sales, 0, 12_000_000),
+    investment: normalizeDimension("investment", data.investment),
+    reach: normalizeDimension("reach", data.reach),
+    purchase: normalizeDimension("purchase", data.purchase),
+    sentiment: normalizeDimension("sentiment", data.sentiment),
+    sales: normalizeDimension("sales", data.sales),
   }
 
   const contributions: Record<string, number> = {}
@@ -218,15 +327,19 @@ export function calculateBH360(data: PeriodData): BH360Result {
     score += contrib
   }
 
-  // Pillar scores: weighted average within each pillar
-  const inputWeight = 0.15 + 0.20
-  const equityWeight = 0.25 + 0.15
-  const pillarScores: Record<string, number> = {
-    input:
-      (normalized.investment * 0.15 + normalized.reach * 0.20) / inputWeight,
-    equity:
-      (normalized.purchase * 0.25 + normalized.sentiment * 0.15) / equityWeight,
-    performance: normalized.sales,
+  // Pillar scores: promedio ponderado de las dimensiones dentro de cada pilar.
+  const pillarScores: Record<string, number> = {}
+  for (const pillar of Object.keys(PILLAR_LABELS)) {
+    const dims = DIMENSIONS.filter((d) => d.pillar === pillar)
+    const totalWeight = dims.reduce((acc, d) => acc + d.weight, 0)
+    pillarScores[pillar] =
+      totalWeight === 0
+        ? 0
+        : dims.reduce(
+            (acc, d) =>
+              acc + normalized[d.id as keyof NormalizedScores] * d.weight,
+            0
+          ) / totalWeight
   }
 
   let level: string
@@ -271,7 +384,8 @@ export function formatCurrency(value: number): string {
     return `S/ ${(value / 1_000_000).toFixed(1)}M`
   }
   if (value >= 1_000) {
-    return `S/ ${(value / 1_000).toFixed(0)}K`
+    const k = value / 1_000
+    return `S/ ${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}K`
   }
   return `S/ ${value.toFixed(0)}`
 }
