@@ -273,7 +273,7 @@ function Spark({ data, dimId }: { data: PeriodData[]; dimId: string }) {
         <Line
           type="monotone"
           dataKey="v"
-          stroke="#f59e0b"
+          stroke="#f97316"
           strokeWidth={1.5}
           dot={false}
         />
@@ -286,7 +286,7 @@ function InfoModal({ dim }: { dim: typeof DIMENSIONS[number] }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button className="p-1 rounded hover:bg-zinc-800 focus:ring-2 focus:ring-amber-400/50 focus:outline-none transition-colors">
+        <button className="p-1 rounded hover:bg-zinc-800 focus:ring-2 focus:ring-orange-400/50 focus:outline-none transition-colors">
           <Info className="h-4 w-4 text-zinc-500" />
         </button>
       </DialogTrigger>
@@ -457,7 +457,7 @@ function ReportView({
       <Card className="bg-zinc-900/60 border-zinc-800">
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row items-center gap-6">
-            <ScoreRing score={result.score} />
+            <ScoreRing score={result.score} color="#f97316" />
             <div className="flex-1 space-y-3">
               <div>
                 <h2 className="text-2xl font-bold text-zinc-100" style={{ fontFamily: "Outfit" }}>
@@ -517,8 +517,8 @@ function ReportView({
             <CardTitle className="text-sm text-zinc-400">Perfil Dimensional</CardTitle>
           </CardHeader>
           <CardContent className="flex justify-center">
-            <ResponsiveContainer width={280} height={260}>
-              <RadarChart data={radarData}>
+            <ResponsiveContainer width={340} height={280}>
+              <RadarChart data={radarData} outerRadius="62%" margin={{ top: 8, right: 24, bottom: 8, left: 24 }}>
                 <PolarGrid stroke="rgba(255,255,255,0.08)" />
                 <PolarAngleAxis
                   dataKey="dimension"
@@ -542,8 +542,8 @@ function ReportView({
                 <Radar
                   name="Actual"
                   dataKey="current"
-                  stroke="#f59e0b"
-                  fill="#f59e0b"
+                  stroke="#f97316"
+                  fill="#f97316"
                   fillOpacity={0.15}
                   strokeWidth={2}
                 />
@@ -683,7 +683,7 @@ function ReportView({
             La dimensión más débil es <strong className="text-zinc-200">{weakest.label}</strong> ({weakest.score.toFixed(0)}/100).
           </p>
           {weakest.score < 40 && (
-            <p className="text-sm text-amber-400">
+            <p className="text-sm text-orange-400">
               Se recomienda una intervención focalizada en {weakest.label} para mejorar el índice general.
             </p>
           )}
@@ -838,7 +838,7 @@ function DataEntryView({
       <div className="lg:col-span-2 space-y-6">
         {data.length < 2 && (
           <div className="flex items-center gap-2 text-xs text-zinc-400 bg-zinc-900/60 border border-zinc-800 rounded-md px-3 py-2">
-            <Lightbulb className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <Lightbulb className="h-3.5 w-3.5 text-orange-400 shrink-0" />
             Cargá al menos 2 períodos para ver tendencias y comparaciones en el Reporte.
           </div>
         )}
@@ -851,7 +851,7 @@ function DataEntryView({
               aria-current={i === step ? "step" : undefined}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
                 i === step
-                  ? "bg-amber-500/20 text-amber-400 font-medium"
+                  ? "bg-orange-500/20 text-orange-400 font-medium"
                   : i < step
                   ? "bg-zinc-800 text-zinc-300"
                   : "bg-zinc-900 text-zinc-500"
@@ -869,7 +869,7 @@ function DataEntryView({
         <Card className="bg-zinc-900/60 border-zinc-800">
           <CardContent className="p-6 space-y-4">
             {editingIndex !== null && (
-              <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-orange-400 bg-orange-500/10 border border-orange-500/30 rounded-md px-3 py-2">
                 <Pencil className="h-3 w-3" /> Editando: {data[editingIndex]?.period}
               </div>
             )}
@@ -956,7 +956,7 @@ function DataEntryView({
                         </span>
                       </div>
                       {investmentTotal > dim.ceiling && (
-                        <p className="text-[11px] text-amber-400">
+                        <p className="text-[11px] text-orange-400">
                           Supera el techo de {formatCurrency(dim.ceiling)} por campaña; la
                           dimensión se mantiene en 100/100.
                         </p>
@@ -1025,7 +1025,7 @@ function DataEntryView({
                     size="sm"
                     onClick={() => setStep(step + 1)}
                     disabled={!canNext}
-                    className="bg-amber-500 hover:bg-amber-600 text-zinc-900"
+                    className="bg-orange-500 hover:bg-orange-600 text-zinc-900"
                   >
                     Siguiente <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
@@ -1034,7 +1034,7 @@ function DataEntryView({
                     size="sm"
                     onClick={handleSave}
                     disabled={!isValid}
-                    className="bg-amber-500 hover:bg-amber-600 text-zinc-900 disabled:opacity-50"
+                    className="bg-orange-500 hover:bg-orange-600 text-zinc-900 disabled:opacity-50"
                   >
                     {editingIndex !== null ? "Guardar cambios" : "Guardar Período"}
                   </Button>
@@ -1100,7 +1100,7 @@ function DataEntryView({
                       return (
                         <tr
                           key={i}
-                          className={`border-b border-zinc-800/50 ${editingIndex === i ? "bg-amber-500/5" : ""}`}
+                          className={`border-b border-zinc-800/50 ${editingIndex === i ? "bg-orange-500/5" : ""}`}
                         >
                           <td className="py-2 px-2 text-zinc-300">{row.period}</td>
                           <td className="py-2 px-2 text-zinc-400 text-xs">{row.campaign}</td>
@@ -1117,7 +1117,7 @@ function DataEntryView({
                               <button
                                 onClick={() => startEdit(i)}
                                 aria-label={`Editar ${row.period}`}
-                                className="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-amber-400 focus:ring-2 focus:ring-amber-400/50 focus:outline-none transition-colors"
+                                className="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-orange-400 focus:ring-2 focus:ring-orange-400/50 focus:outline-none transition-colors"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
@@ -1254,7 +1254,7 @@ const SLIDER_STEP: Record<string, number> = {
   reach: 1,
   purchase: 1,
   sentiment: 1,
-  sales: 100_000,
+  sales: 200,
 }
 
 const INVESTMENT_CEILING =
@@ -1389,9 +1389,9 @@ function SimView({
   return (
     <div className="space-y-6">
       {/* Banner explicativo */}
-      <Card className="bg-zinc-900/60 border-zinc-800 border-l-4 border-l-amber-400/60">
+      <Card className="bg-zinc-900/60 border-zinc-800 border-l-4 border-l-orange-400/60">
         <CardContent className="p-4 flex items-start gap-3">
-          <Lightbulb className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
+          <Lightbulb className="h-5 w-5 text-orange-400 mt-0.5 shrink-0" />
           <p className="text-sm text-zinc-400 leading-relaxed">
             El BH360 va de <strong className="text-zinc-200">0 a 100</strong>. Cada
             dimensión se ingresa en su <strong className="text-zinc-200">unidad real</strong>{" "}
@@ -1444,7 +1444,7 @@ function SimView({
                         step={SLIDER_STEP[dim.id]}
                         aria-label={`${dim.label} en ${dim.unit}`}
                         onValueChange={([v]) => setDim(dim.id, v)}
-                        className="[&_[role=slider]]:bg-amber-400"
+                        className="[&_[role=slider]]:bg-orange-400"
                       />
                     )}
                     <div className="flex items-center justify-between text-[11px] text-zinc-500">
@@ -1454,7 +1454,7 @@ function SimView({
                       </span>
                       <span>
                         Peso {(dim.weight * 100).toFixed(0)}% ·{" "}
-                        <span className="text-amber-400/80">+{contrib.toFixed(1)} pts</span>
+                        <span className="text-orange-400/80">+{contrib.toFixed(1)} pts</span>
                       </span>
                     </div>
                     <p className="text-[10px] text-zinc-600">
@@ -1502,7 +1502,7 @@ function SimView({
                       step={5_000}
                       aria-label={`Inversión en ${c.label}`}
                       onValueChange={([val]) => setMedia(c.id, val)}
-                      className="[&_[role=slider]]:bg-amber-400"
+                      className="[&_[role=slider]]:bg-orange-400"
                     />
                   </div>
                 )
@@ -1515,7 +1515,7 @@ function SimView({
                 </span>
               </div>
               {simInvestment > INVESTMENT_CEILING && (
-                <p className="text-[10px] text-amber-400">
+                <p className="text-[10px] text-orange-400">
                   La inversión supera el techo de {formatCurrency(INVESTMENT_CEILING)}; la
                   dimensión se mantiene en 100/100.
                 </p>
@@ -1662,8 +1662,8 @@ function SimView({
                   <Radar
                     name="Simulado"
                     dataKey="simulado"
-                    stroke="#f59e0b"
-                    fill="#f59e0b"
+                    stroke="#f97316"
+                    fill="#f97316"
                     fillOpacity={0.15}
                     strokeWidth={2}
                   />
@@ -1825,7 +1825,7 @@ function MethodView() {
               { step: "4", title: "Diagnosticar", desc: "El sistema genera automáticamente un diagnóstico que identifica fortalezas, debilidades y recomendaciones de acción." },
             ].map((s) => (
               <div key={s.step} className="flex gap-3">
-                <span className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-mono font-bold shrink-0">
+                <span className="w-7 h-7 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center text-xs font-mono font-bold shrink-0">
                   {s.step}
                 </span>
                 <div>
@@ -1886,7 +1886,7 @@ function EmptyState({
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-3">
-          <Button onClick={onGoToEntry} className="bg-amber-500 hover:bg-amber-600 text-zinc-900">
+          <Button onClick={onGoToEntry} className="bg-orange-500 hover:bg-orange-600 text-zinc-900">
             <ClipboardList className="h-4 w-4 mr-1.5" /> Ingresar datos
           </Button>
           <Button variant="outline" onClick={onRestoreSample} className="border-zinc-700">
@@ -1912,7 +1912,7 @@ export default function App() {
   const [tab, setTab] = useState("report")
   const [data, setData] = useState<PeriodData[]>(loadPeriods)
   const [selectedIndex, setSelectedIndex] = useState(() => Math.max(0, data.length - 1))
-  const [usingSample, setUsingSample] = useState(() => !hasStoredPeriods())
+  const [, setUsingSample] = useState(() => !hasStoredPeriods())
 
   // Persistir en localStorage ante cualquier cambio de datos.
   useEffect(() => {
@@ -1964,18 +1964,22 @@ export default function App() {
         <header className="sticky top-0 z-50 bg-zinc-950/80 backdrop-blur-sm border-b border-zinc-800">
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-amber-400" style={{ fontFamily: "Outfit" }}>
+              <h1 className="text-xl font-bold text-orange-400" style={{ fontFamily: "Outfit" }}>
                 BH360
               </h1>
               <span className="text-xs text-zinc-500 hidden sm:inline">Business Health 360</span>
-              {usingSample && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] border-amber-500/50 text-amber-400 bg-amber-500/10 ml-2"
+              <Separator orientation="vertical" className="h-5 bg-zinc-800 hidden sm:block" />
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-sm font-bold text-zinc-950 bg-orange-400 rounded px-1.5 py-0.5 leading-none"
+                  style={{ fontFamily: "Outfit" }}
                 >
-                  Data de prueba
-                </Badge>
-              )}
+                  UPN
+                </span>
+                <span className="text-xs text-zinc-400 hidden md:inline">
+                  Universidad Privada del Norte
+                </span>
+              </div>
             </div>
 
             <div className="flex items-center gap-4">
@@ -2008,7 +2012,7 @@ export default function App() {
                       key={t.id}
                       value={t.id}
                       aria-current={tab === t.id ? "page" : undefined}
-                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-amber-400 data-[state=active]:text-amber-400 data-[state=active]:bg-transparent px-4 py-2.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-orange-400 data-[state=active]:text-orange-400 data-[state=active]:bg-transparent px-4 py-2.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
                     >
                       <Icon className="h-4 w-4 mr-1.5" />
                       {t.label}

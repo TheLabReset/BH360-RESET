@@ -61,11 +61,11 @@ export const DIMENSIONS: DimensionConfig[] = [
     pillar: "input",
     weight: 0.15,
     floor: 0,
-    ceiling: 500_000,
+    ceiling: 1_500_000,
     unit: "S/",
     source: "Agencia de medios",
     description:
-      "Inversión total en medios pagados durante la campaña. Se desagrega por medio (TV Abierta, Digital, OOH, Radio, Periódico) y su suma alimenta esta dimensión.",
+      "Inversión total en medios pagados durante el ciclo de admisión. Se desagrega por medio (TV Abierta, Digital, OOH, Radio, Periódico) y su suma alimenta esta dimensión.",
     justification:
       "Binet & Davis (IPA, 2025): el presupuesto explica el 89% de las variaciones en beneficio. Es el input más controlable por la marca.",
   },
@@ -79,27 +79,27 @@ export const DIMENSIONS: DimensionConfig[] = [
     unit: "%",
     source: "Agencia + plataformas",
     description:
-      "Porcentaje del universo target alcanzado al menos una vez durante el período, deduplicado cross-media.",
+      "Porcentaje del público objetivo (postulantes potenciales y familias) alcanzado al menos una vez durante el ciclo, deduplicado cross-media.",
     justification:
       "Sharp (2010): mental availability es el driver principal de crecimiento. El reach es su proxy más directo y medible.",
   },
   {
     id: "purchase",
-    label: "Compra Declarada (Último Mes)",
+    label: "Intención de Matrícula",
     pillar: "equity",
     weight: 0.25,
     floor: 0,
     ceiling: 85,
     unit: "%",
-    source: "Ipsos / Panel digital The Lab",
+    source: "Estudio de intención / Panel The Lab",
     description:
-      "Porcentaje de encuestados que declaran haber comprado la marca en el último mes. Medido vía panel online o tracking.",
+      "Porcentaje de postulantes potenciales que declaran intención de matricularse en UPN en el próximo ciclo. Medido vía panel online o tracking de marca.",
     justification:
-      "Brand Finance BrandBeta (2022): familiaridad (65%) + consideración (35%) explican 80%+ de varianza en market share. Compra declarada es la métrica de equity más predictiva.",
+      "Brand Finance BrandBeta (2022): familiaridad (65%) + consideración (35%) explican 80%+ de varianza en market share. La intención declarada es la métrica de equity más predictiva.",
   },
   {
     id: "sentiment",
-    label: "Net Sentiment Score",
+    label: "Sentiment Neto",
     pillar: "equity",
     weight: 0.15,
     floor: -100,
@@ -107,23 +107,23 @@ export const DIMENSIONS: DimensionConfig[] = [
     unit: "NSS",
     source: "Agencia creativa / Social listening",
     description:
-      "Net Sentiment Score: diferencia entre el porcentaje de menciones positivas y negativas. Rango natural de -100 (muy negativo) a +100 (muy positivo).",
+      "Net Sentiment Score: diferencia entre el porcentaje de menciones positivas y negativas de la marca. Rango natural de -100 (muy negativo) a +100 (muy positivo).",
     justification:
       "Field (IPA, 2026): 93% de campañas con grandes mejoras en trust reportan efectos de negocio. Peso moderado (15%) porque es volátil y sensible a crisis.",
   },
   {
     id: "sales",
-    label: "Ventas del Período",
+    label: "Matrículas Nuevas del Ciclo",
     pillar: "performance",
     weight: 0.25,
     floor: 0,
-    ceiling: 12_000_000,
-    unit: "S/",
-    source: "Cliente (ERP)",
+    ceiling: 22_000,
+    unit: "matrículas",
+    source: "UPN (Sistema académico)",
     description:
-      "Ventas netas en soles del período. Dato provisto por el cliente desde su ERP o reporte financiero.",
+      "Cantidad de matrículas nuevas registradas en el ciclo de admisión. Dato provisto por la universidad desde su sistema académico.",
     justification:
-      "Es el resultado final de negocio. Peso igual al de Compra Declarada (25%) para balancear equity con performance real.",
+      "Es el resultado final de negocio. Peso igual al de Intención de Matrícula (25%) para balancear equity con performance real.",
   },
 ]
 
@@ -172,13 +172,14 @@ export const MEDIA_CHANNELS: MediaChannelConfig[] = [
 ]
 
 // Distribución por defecto del presupuesto (suma 1.0). Calibrada para
-// FMCG en Perú: TV Abierta dominante, Digital en crecimiento.
+// captación educativa en Perú: Digital dominante (performance de matrícula),
+// TV y OOH de refuerzo de marca, Radio y Periódico marginales.
 export const DEFAULT_MEDIA_SHARES: Record<keyof MediaMix, number> = {
-  tvAbierta: 0.45,
-  digital: 0.3,
-  ooh: 0.12,
-  radio: 0.09,
-  periodico: 0.04,
+  tvAbierta: 0.2,
+  digital: 0.55,
+  ooh: 0.15,
+  radio: 0.07,
+  periodico: 0.03,
 }
 
 export function emptyMediaMix(): MediaMix {
@@ -213,71 +214,71 @@ export function getMediaMix(data: PeriodData): MediaMix {
 
 export const SAMPLE_DATA: PeriodData[] = [
   {
-    period: "Q3 2025",
-    brand: "San Fernando",
-    campaign: "Jueves de Pavita + Always On",
-    investment: 180_000,
-    reach: 68,
-    purchase: 55,
-    sentiment: 45,
-    sales: 8_200_000,
+    period: "2025-I · Marzo",
+    brand: "Universidad Privada del Norte",
+    campaign: "Admisión 2025-I",
+    investment: 1_050_000,
+    reach: 82,
+    purchase: 68,
+    sentiment: 28,
+    sales: 17_000,
     mediaMix: {
-      tvAbierta: 81_000,
-      digital: 54_000,
-      ooh: 21_600,
-      radio: 16_200,
-      periodico: 7_200,
+      tvAbierta: 210_000,
+      digital: 577_500,
+      ooh: 157_500,
+      radio: 73_500,
+      periodico: 31_500,
     },
   },
   {
-    period: "Q4 2025",
-    brand: "San Fernando",
-    campaign: "Navidad + Pavo",
-    investment: 380_000,
-    reach: 78,
-    purchase: 65,
-    sentiment: 58,
-    sales: 10_200_000,
+    period: "2025-II · Agosto",
+    brand: "Universidad Privada del Norte",
+    campaign: "Admisión 2025-II",
+    investment: 780_000,
+    reach: 74,
+    purchase: 63,
+    sentiment: 22,
+    sales: 13_500,
     mediaMix: {
-      tvAbierta: 171_000,
-      digital: 114_000,
-      ooh: 45_600,
-      radio: 34_200,
-      periodico: 15_200,
+      tvAbierta: 156_000,
+      digital: 429_000,
+      ooh: 117_000,
+      radio: 54_600,
+      periodico: 23_400,
     },
   },
   {
-    period: "Q1 2026",
-    brand: "San Fernando",
-    campaign: "Verano + Embutidos",
-    investment: 250_000,
-    reach: 77,
-    purchase: 61,
-    sentiment: 52,
-    sales: 9_000_000,
+    period: "Verano 2026",
+    brand: "Universidad Privada del Norte",
+    campaign: "Becas y Traslados · Always On",
+    investment: 960_000,
+    reach: 85,
+    purchase: 72,
+    sentiment: 34,
+    sales: 18_200,
     mediaMix: {
-      tvAbierta: 112_500,
-      digital: 75_000,
-      ooh: 30_000,
-      radio: 22_500,
-      periodico: 10_000,
+      tvAbierta: 192_000,
+      digital: 528_000,
+      ooh: 144_000,
+      radio: 67_200,
+      periodico: 28_800,
     },
   },
   {
-    period: "Q2 2026",
-    brand: "San Fernando",
-    campaign: "Día de la Madre + Always On",
-    investment: 450_000,
-    reach: 89,
-    purchase: 79,
-    sentiment: 75,
-    sales: 11_500_000,
+    period: "2026-I · Marzo",
+    brand: "Universidad Privada del Norte",
+    campaign: "Admisión 2026-I",
+    investment: 1_380_000,
+    reach: 88,
+    purchase: 76,
+    sentiment: 38,
+    sales: 20_400,
     mediaMix: {
-      tvAbierta: 202_500,
-      digital: 135_000,
-      ooh: 54_000,
-      radio: 40_500,
-      periodico: 18_000,
+      tvAbierta: 276_000,
+      digital: 759_000,
+      ooh: 207_000,
+      radio: 96_600,
+      periodico: 41_400,
     },
   },
 ]
@@ -401,8 +402,10 @@ export function formatPercent(value: number): string {
 export function formatDimensionValue(dimId: string, value: number): string {
   switch (dimId) {
     case "investment":
-    case "sales":
       return formatCurrency(value)
+    case "sales":
+      // Matrículas: conteo con separador de miles.
+      return value.toLocaleString("en-US")
     case "reach":
     case "purchase":
       return formatPercent(value)
